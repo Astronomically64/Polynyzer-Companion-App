@@ -203,8 +203,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (allFilled) {
-      const isConcave = state.angleValues.some((v) => parseFloat(v) > 180);
-      liveShapeBadge.textContent = isConcave ? 'Concave' : 'Convex';
+      const shapeClassification = classifyShape(state.angleValues);
+      liveShapeBadge.textContent = shapeClassification; // Will show 'Convex', 'Concave', or 'Intersecting'
       liveShapeBadge.classList.remove('hidden');
     } else {
       liveShapeBadge.classList.add('hidden');
@@ -240,6 +240,93 @@ document.addEventListener('DOMContentLoaded', () => {
     initScreen3();
   });
 
+  // --- SELF-INTERSECTION DETECTION FUNCTIONS ---
+
+  function buildWalkPoints(n, angleValues) {
+    const L = 60; // Fixed edge length
+    const points = [{ x: 0, y: 0 }];
+    let heading = 0;
+
+    for (let i = 0; i < n - 1; i++) {
+      const angle = parseFloat(angleValues[i]);
+      const turn = 180 - angle;
+      heading += turn;
+
+      const rad = (heading * Math.PI) / 180;
+      const prev = points[points.length - 1];
+      const nextX = prev.x + L * Math.cos(rad);
+      const nextY = prev.y + L * Math.sin(rad);
+
+      points.push({ x: nextX, y: nextY });
+    }
+
+    return points;
+  }
+
+  function segmentsIntersectStrict(p1, p2, p3, p4) {
+    const eps = 1e-9;
+    
+    const ccw = (A, B, C) => {
+      return (C.y - A.y) * (B.x - A.x) - (B.y - A.y) * (C.x - A.x) > eps;
+    };
+
+    const ccwEqual = (A, B, C) => {
+      const val = (C.y - A.y) * (B.x - A.x) - (B.y - A.y) * (C.x - A.x);
+      return Math.abs(val) <= eps;
+    };
+
+    const ccwResult1 = ccw(p1, p3, p4);
+    const ccwResult2 = ccw(p2, p3, p4);
+    const ccwResult3 = ccw(p1, p2, p3);
+    const ccwResult4 = ccw(p1, p2, p4);
+
+    const result1 = ccwResult1 !== ccwResult2;
+    const result2 = ccwResult3 !== ccwResult4;
+
+    return result1 && result2;
+  }
+
+  function hasSelfIntersection(points) {
+    const n = points.length;
+
+    // Check all pairs of edges
+    for (let i = 0; i < n; i++) {
+      const p1 = points[i];
+      const p2 = points[(i + 1) % n];
+
+      for (let j = i + 2; j < n; j++) {
+        // Additional check: skip edge pair (n-1, 0) as they are adjacent
+        if (i === 0 && j === n - 1) continue;
+
+        const p3 = points[j];
+        const p4 = points[(j + 1) % n];
+
+        if (segmentsIntersectStrict(p1, p2, p3, p4)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  function classifyShape(angleValues) {
+    const numericValues = angleValues.map((v) => parseFloat(v));
+    
+    // Check for self-intersection
+    const points = buildWalkPoints(angleValues.length, angleValues);
+    if (hasSelfIntersection(points)) {
+      return 'Intersecting';
+    }
+
+    // Check for concave (reflex angle)
+    if (numericValues.some((angle) => angle > 180)) {
+      return 'Concave';
+    }
+
+    return 'Convex';
+  }
+
   // --- SCREEN 3 LOGIC ---
 
   function initScreen3() {
@@ -249,13 +336,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const totalSum = numericValues.reduce((sum, current) => sum + current, 0);
     const expectedSum = (state.sidesCount - 2) * 180;
 
-    const isCorrect = (totalSum === expectedSum);
+    const shapeClassification = classifyShape(state.angleValues);
+    const isIntersecting = shapeClassification === 'Intersecting';
+    const isSumCorrect = totalSum === expectedSum;
+    const isCorrect = isSumCorrect && !isIntersecting;
 
     const mode = isCorrect ? 'correct' : 'wrong';
     resultDiagramContainer.innerHTML = generatePolygonSVG(state.sidesCount, state.angleValues, mode);
 
-    const isConcave = numericValues.some((v) => v > 180);
-    resultShapeBadge.textContent = isConcave ? 'Concave' : 'Convex';
+    // Set shape badge (but show "Intersecting" as separate indicator, not in badge)
+    if (isIntersecting) {
+      resultShapeBadge.textContent = 'Intersecting';
+    } else {
+      const isConcave = numericValues.some((v) => v > 180);
+      resultShapeBadge.textContent = isConcave ? 'Concave' : 'Convex';
+    }
 
     resultCard.className = `result-card ${isCorrect ? 'correct' : 'wrong'}`;
 
@@ -267,7 +362,12 @@ document.addEventListener('DOMContentLoaded', () => {
       resultStatusText.textContent = 'Wrong';
     }
 
-    resultSumText.textContent = `Sum: ${totalSum}° / ${expectedSum}°`;
+    // Build result message with self-intersection callout if applicable
+    let resultMessage = `Sum: ${totalSum}° / ${expectedSum}°`;
+    if (isIntersecting) {
+      resultMessage += ' — the sides cross';
+    }
+    resultSumText.textContent = resultMessage;
   }
 
   btnTryAnother.addEventListener('click', () => {
