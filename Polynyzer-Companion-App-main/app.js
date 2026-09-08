@@ -349,12 +349,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const totalSum = numericValues.reduce((sum, current) => sum + current, 0);
     const expectedSum = (state.sidesCount - 2) * 180;
 
-    const isCorrect = (totalSum === expectedSum);
+    const shapeKind = classifyShape(state.angleValues);
+    const isIntersecting = shapeKind === 'Intersecting';
+    const isCorrect = !isIntersecting && (totalSum === expectedSum);
 
     const mode = isCorrect ? 'correct' : 'wrong';
     resultDiagramContainer.innerHTML = generatePolygonSVG(state.sidesCount, state.angleValues, mode);
 
-    const shapeKind = classifyShape(state.angleValues);
     resultShapeBadge.textContent = shapeKind;
 
     resultCard.className = `result-card ${isCorrect ? 'correct' : 'wrong'}`;
