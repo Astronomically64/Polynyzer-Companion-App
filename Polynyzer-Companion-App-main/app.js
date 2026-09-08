@@ -266,27 +266,35 @@ document.addEventListener('DOMContentLoaded', () => {
       return false;
     }
 
-    const segments = [];
-    for (let i = 0; i < points.length; i++) {
-      const start = points[i];
-      const end = points[(i + 1) % points.length];
-      segments.push({ start, end });
-    }
-
-    for (let i = 0; i < segments.length; i++) {
-      for (let j = i + 1; j < segments.length; j++) {
-        const isAdjacent = Math.abs(i - j) === 1 || (i === 0 && j === segments.length - 1);
-        if (isAdjacent) {
+    const n = points.length;
+    
+    for (let i = 0; i < n; i++) {
+      const p1 = points[i];
+      const p2 = points[(i + 1) % n];
+      
+      for (let j = i + 2; j < n; j++) {
+        if (i === 0 && j === n - 1) {
           continue;
         }
-
-        if (segmentsIntersect(segments[i].start, segments[i].end, segments[j].start, segments[j].end)) {
+        
+        const p3 = points[j];
+        const p4 = points[(j + 1) % n];
+        
+        if (segmentsIntersectStrict(p1, p2, p3, p4)) {
           return true;
         }
       }
     }
 
     return false;
+  }
+
+  function segmentsIntersectStrict(p1, p2, p3, p4) {
+    const ccw = (A, B, C) => {
+      return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
+    };
+
+    return ccw(p1, p3, p4) !== ccw(p2, p3, p4) && ccw(p1, p2, p3) !== ccw(p1, p2, p4);
   }
 
   btnCheckResult.addEventListener('click', () => {
@@ -485,15 +493,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let labelsSVG = '';
     for (let i = 0; i < n; i++) {
       const p = normalizedPts[i];
-
-      let labelX = p.x;
-      let labelY = p.y;
-
-      const offsetDist = 18;
-      const angleFromCenter = Math.atan2(p.y - svgH / 2, p.x - svgW / 2);
-      labelX += offsetDist * Math.cos(angleFromCenter);
-      labelY += offsetDist * Math.sin(angleFromCenter);
-
       const rawVal = values[i];
       let displayVal = '—';
       if (rawVal !== undefined && rawVal !== null && rawVal !== '') {
@@ -501,8 +500,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       labelsSVG += `
-        <text x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" 
-              fill="${labelColorHex}" class="polygon-vertex-label">
+        <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="${labelColorHex}" opacity="0.6" />
+        <text x="${p.x.toFixed(1)}" y="${(p.y - 12).toFixed(1)}" 
+              fill="${labelColorHex}" class="polygon-vertex-label" text-anchor="middle">
           ${displayVal}
         </text>
       `;
