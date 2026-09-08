@@ -41,10 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const screen2Subtitle = document.getElementById('screen2-subtitle');
   const liveDiagramContainer = document.getElementById('live-diagram-container');
   const liveShapeBadge = document.getElementById('live-shape-badge');
-  const liveTriangulation = document.getElementById('live-triangulation');
-  const liveTriangulationLabel = document.getElementById('live-triangulation-label');
-  const liveTriangulationList = document.getElementById('live-triangulation-list');
-  const liveTriangulationNote = document.getElementById('live-triangulation-note');
   const angleInputsContainer = document.getElementById('angle-inputs-container');
   const btnCheckResult = document.getElementById('btn-check-result');
 
@@ -55,7 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const resultIcon = document.getElementById('result-icon');
   const resultStatusText = document.getElementById('result-status-text');
   const resultSumText = document.getElementById('result-sum-text');
-  const resultBreakdownText = document.getElementById('result-breakdown-text');
   const btnTryAnother = document.getElementById('btn-try-another');
 
   // Set default page to Title Screen (Screen 0) on load
@@ -208,21 +203,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (allFilled) {
-      const points = buildWalkPoints(state.sidesCount, state.angleValues);
-      const hasIntersectingEdges = hasSelfIntersection(points);
-      const isConcave = state.angleValues.some((v) => parseFloat(v) > 180);
-
-      if (hasIntersectingEdges) {
-        liveShapeBadge.textContent = 'Intersecting';
-      } else {
-        liveShapeBadge.textContent = isConcave ? 'Concave' : 'Convex';
-      }
+      liveShapeBadge.textContent = classifyShape(state.angleValues);
       liveShapeBadge.classList.remove('hidden');
     } else {
       liveShapeBadge.classList.add('hidden');
     }
+  }
 
-    renderTriangulationSummary();
+  function classifyShape(values) {
+    if (!values || values.length === 0) {
+      return 'Convex';
+    }
+
+    const numericValues = values.map((value) => parseFloat(value));
+    if (numericValues.some((value) => Number.isNaN(value))) {
+      return 'Convex';
+    }
+
+    const points = buildWalkPoints(values.length, values);
+    if (hasSelfIntersection(points)) {
+      return 'Intersecting';
+    }
+
+    if (numericValues.some((angle) => angle > 180)) {
+      return 'Concave';
+    }
+
+    return 'Convex';
   }
 
   function buildWalkPoints(n, values) {
@@ -304,57 +311,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return false;
   }
 
-  function renderTriangulationSummary() {
-    if (!liveTriangulation || !liveTriangulationLabel || !liveTriangulationList || !liveTriangulationNote) {
-      return;
-    }
-
-    const hasAllValues = state.sidesCount > 0 && state.angleValues.length === state.sidesCount &&
-      state.angleValues.every((val) => {
-        const num = parseFloat(val);
-        return val !== '' && !isNaN(num) && num > 0 && num < 360;
-      });
-
-    if (!hasAllValues) {
-      liveTriangulation.classList.add('hidden');
-      return;
-    }
-
-    const numericValues = state.angleValues.map((value) => parseFloat(value));
-    const triangleCount = Math.max(0, state.sidesCount - 2);
-    const isConvex = numericValues.every((angle) => angle < 180);
-    const points = buildWalkPoints(state.sidesCount, state.angleValues);
-    const selfIntersecting = hasSelfIntersection(points);
-
-    if (selfIntersecting) {
-      const splitCount = Math.max(2, triangleCount);
-      liveTriangulationLabel.textContent = 'Intersecting lines';
-      liveTriangulationList.innerHTML = Array.from({ length: splitCount }, (_, index) => {
-        const triangleNumber = index + 1;
-        return `<span class="triangle-chip">T${triangleNumber}<strong>180°</strong></span>`;
-      }).join('');
-      liveTriangulationNote.textContent = 'Lines cross, so this is not a valid simple polygon. Intersecting lines form separate triangles, but the angle set is invalid.';
-      liveTriangulation.classList.remove('hidden');
-      return;
-    }
-
-    if (!isConvex) {
-      liveTriangulationLabel.textContent = 'Concave polygon';
-      liveTriangulationList.innerHTML = '';
-      liveTriangulationNote.textContent = 'A reflex angle prevents a simple non-crossing convex triangulation.';
-      liveTriangulation.classList.remove('hidden');
-      return;
-    }
-
-    liveTriangulationLabel.textContent = `Convex fan: ${triangleCount} triangles`;
-    liveTriangulationList.innerHTML = Array.from({ length: triangleCount }, (_, index) => {
-      const triangleNumber = index + 1;
-      return `<span class="triangle-chip">T${triangleNumber}<strong>180°</strong></span>`;
-    }).join('');
-    liveTriangulationNote.textContent = `Each triangle totals 180°, so the full sum is ${triangleCount * 180}°.`;
-    liveTriangulation.classList.remove('hidden');
-  }
-
   btnCheckResult.addEventListener('click', () => {
     let hasError = false;
 
@@ -398,17 +354,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const mode = isCorrect ? 'correct' : 'wrong';
     resultDiagramContainer.innerHTML = generatePolygonSVG(state.sidesCount, state.angleValues, mode);
 
-    const points = buildWalkPoints(state.sidesCount, state.angleValues);
-    const hasIntersectingEdges = hasSelfIntersection(points);
-    const isConcave = numericValues.some((v) => v > 180);
-    resultShapeBadge.textContent = hasIntersectingEdges ? 'Intersecting' : (isConcave ? 'Concave' : 'Convex');
-
-    const triangleCount = Math.max(0, state.sidesCount - 2);
-    resultBreakdownText.textContent = hasIntersectingEdges
-      ? 'Intersecting lines create separate triangles, but this is not a valid simple polygon.'
-      : (isConcave
-        ? 'Concave polygon: a reflex angle breaks the simple convex fan split.'
-        : `Convex fan: ${triangleCount} triangles × 180° = ${triangleCount * 180}°`);
+    const shapeKind = classifyShape(state.angleValues);
+    resultShapeBadge.textContent = shapeKind;
 
     resultCard.className = `result-card ${isCorrect ? 'correct' : 'wrong'}`;
 
@@ -447,11 +394,6 @@ document.addEventListener('DOMContentLoaded', () => {
     liveDiagramContainer.innerHTML = '';
     angleInputsContainer.innerHTML = '';
     resultDiagramContainer.innerHTML = '';
-    resultBreakdownText.textContent = '';
-
-    if (liveTriangulation) {
-      liveTriangulation.classList.add('hidden');
-    }
   }
 
   // --- NAVIGATION HELPER ---
@@ -593,44 +535,5 @@ document.addEventListener('DOMContentLoaded', () => {
         ${labelsSVG}
       </svg>
     `;
-  }
-
-  // --- TRIANGULATION LOGIC ---
-
-  function computeTriangulation(sidesCount, angleValues) {
-    const triangles = [];
-    let note = '';
-
-    if (sidesCount < 3) {
-      return { triangles, note: 'Not enough sides for triangulation' };
-    }
-
-    if (sidesCount === 3) {
-      triangles.push(angleValues.map(v => parseFloat(v)));
-      return { triangles, note: '' };
-    }
-
-    const targetSum = (sidesCount - 2) * 180;
-    const currentSum = angleValues.reduce((sum, val) => sum + parseFloat(val), 0);
-
-    if (currentSum === targetSum) {
-      const baseTriangle = [angleValues[0], angleValues[1], angleValues[2]];
-      triangles.push(baseTriangle);
-
-      let remainingAngles = angleValues.slice(3);
-      while (remainingAngles.length > 0) {
-        const nextTriangle = [baseTriangle[1], baseTriangle[2], remainingAngles[0]];
-        triangles.push(nextTriangle);
-        baseTriangle[1] = baseTriangle[2];
-        baseTriangle[2] = remainingAngles[0];
-        remainingAngles = remainingAngles.slice(1);
-      }
-
-      note = 'Convex triangulation';
-    } else {
-      note = 'Angle sum does not match the expected value';
-    }
-
-    return { triangles, note };
   }
 });
