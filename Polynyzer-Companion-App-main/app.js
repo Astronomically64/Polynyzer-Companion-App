@@ -232,56 +232,33 @@ document.addEventListener('DOMContentLoaded', () => {
     return 'Convex';
   }
 
-  function buildWalkPoints(n, values) {
-    const defaultAngle = ((n - 2) * 180) / n;
-    const rawAngles = [];
-
-    for (let i = 0; i < n; i++) {
-      const val = parseFloat(values[i]);
-      rawAngles.push(!isNaN(val) && val > 0 && val < 360 ? val : defaultAngle);
-    }
-
-    const L = 60;
-    const rawPts = [{ x: 0, y: 0 }];
-    let heading = 0;
-
-    for (let i = 0; i < n - 1; i++) {
-      const angleVal = rawAngles[i];
-      const turn = 180 - angleVal;
-      heading += turn;
-
-      const rad = (heading * Math.PI) / 180;
-      const prev = rawPts[rawPts.length - 1];
-      rawPts.push({
-        x: prev.x + L * Math.cos(rad),
-        y: prev.y + L * Math.sin(rad)
-      });
-    }
-
-    return rawPts;
-  }
-
   function orientation(p, q, r) {
     return (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
   }
 
   function onSegment(p, q, r) {
-    return q.x <= Math.max(p.x, r.x) && q.x >= Math.min(p.x, r.x) &&
-      q.y <= Math.max(p.y, r.y) && q.y >= Math.min(p.y, r.y);
+    const epsilon = 1e-9;
+    if (Math.abs(orientation(p, q, r)) > epsilon) {
+      return false;
+    }
+
+    return q.x <= Math.max(p.x, r.x) + epsilon && q.x >= Math.min(p.x, r.x) - epsilon &&
+      q.y <= Math.max(p.y, r.y) + epsilon && q.y >= Math.min(p.y, r.y) - epsilon;
   }
 
   function segmentsIntersect(p1, q1, p2, q2) {
+    const epsilon = 1e-9;
     const o1 = orientation(p1, q1, p2);
     const o2 = orientation(p1, q1, q2);
     const o3 = orientation(p2, q2, p1);
     const o4 = orientation(p2, q2, q1);
 
-    if (o1 === 0 && onSegment(p1, p2, q1)) return true;
-    if (o2 === 0 && onSegment(p1, q2, q1)) return true;
-    if (o3 === 0 && onSegment(p2, p1, q2)) return true;
-    if (o4 === 0 && onSegment(p2, q1, q2)) return true;
+    if (Math.abs(o1) <= epsilon && onSegment(p1, p2, q1)) return true;
+    if (Math.abs(o2) <= epsilon && onSegment(p1, q2, q1)) return true;
+    if (Math.abs(o3) <= epsilon && onSegment(p2, p1, q2)) return true;
+    if (Math.abs(o4) <= epsilon && onSegment(p2, q1, q2)) return true;
 
-    return (o1 > 0) !== (o2 > 0) && (o3 > 0) !== (o4 > 0);
+    return (o1 > epsilon) !== (o2 > epsilon) && (o3 > epsilon) !== (o4 > epsilon);
   }
 
   function hasSelfIntersection(points) {
@@ -298,7 +275,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     for (let i = 0; i < segments.length; i++) {
       for (let j = i + 1; j < segments.length; j++) {
-        if (Math.abs(i - j) <= 1 || (i === 0 && j === segments.length - 1)) {
+        const isAdjacent = Math.abs(i - j) === 1 || (i === 0 && j === segments.length - 1);
+        if (isAdjacent) {
           continue;
         }
 
